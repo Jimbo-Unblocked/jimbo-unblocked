@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <base href="https://cdn.jsdelivr.net/gh/Jimbo-Unblocked/jimbo-unblocked@v1.0.1/buckshot/">
+    <base href="https://cdn.jsdelivr.net/gh/jimbo-unblocked/jimbo-unblocked@main/buckshot/">
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
     <title>Buckshot Roulette</title>
@@ -9,6 +10,7 @@
     <link id="-gd-engine-icon" rel="icon" type="image/png" href="buckshot-roulette.icon.png" />
     <link rel="apple-touch-icon" href="buckshot-roulette.apple-touch-icon.png" />
 </head>
+
 <body>
     <script src="main.js"></script>
     <div id="loading-text" style="color: white; font-family: cursive; font-size: 48px; text-align: center; margin-top: 20px;">LOADING...</div>
@@ -47,7 +49,9 @@
             let statusMode = '';
 
             function setStatusMode(mode) {
-                if (statusMode === mode || !initializing) return;
+                if (statusMode === mode || !initializing) {
+                    return;
+                }
                 if (mode === 'hidden') {
                     statusOverlay.remove();
                     initializing = false;
@@ -60,7 +64,9 @@
             }
 
             function setStatusNotice(text) {
-                while (statusNotice.lastChild) statusNotice.removeChild(statusNotice.lastChild);
+                while (statusNotice.lastChild) {
+                    statusNotice.removeChild(statusNotice.lastChild);
+                }
                 const lines = text.split('\n');
                 lines.forEach((line) => {
                     statusNotice.appendChild(document.createTextNode(line));
@@ -70,17 +76,50 @@
 
             function displayFailureNotice(err) {
                 console.error(err);
-                if (err instanceof Error) setStatusNotice(err.message);
-                else if (typeof err === 'string') setStatusNotice(err);
-                else setStatusNotice('An unknown error occurred.');
+                if (err instanceof Error) {
+                    setStatusNotice(err.message);
+                } else if (typeof err === 'string') {
+                    setStatusNotice(err);
+                } else {
+                    setStatusNotice('An unknown error occurred.');
+                }
                 setStatusMode('notice');
                 initializing = false;
             }
-
-            const missing = Engine.getMissingFeatures({ threads: GODOT_THREADS_ENABLED });
+            const missing = Engine.getMissingFeatures({
+                threads: GODOT_THREADS_ENABLED,
+            });
             if (missing.length !== 0) {
-                const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
-                displayFailureNotice(missingMsg + missing.join('\n'));
+                if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+                    let serviceWorkerRegistrationPromise;
+                    try {
+                        serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+                    } catch (err) {
+                        serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+                    }
+                    // There's a chance that installing the service worker would fix the issue
+                    Promise.race([
+                        serviceWorkerRegistrationPromise.then((registration) => {
+                            if (registration != null) {
+                                return Promise.reject(new Error('Service worker already exists.'));
+                            }
+                            return registration;
+                        }).then(() => engine.installServiceWorker()),
+                        // For some reason, `getRegistration()` can stall
+                        new Promise((resolve) => {
+                            setTimeout(() => resolve(), 2000);
+                        }),
+                    ]).then(() => {
+                        // Reload if there was no error.
+                        window.location.reload();
+                    }).catch((err) => {
+                        console.error('Error while registering service worker:', err);
+                    });
+                } else {
+                    // Display the message as usual
+                    const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
+                    displayFailureNotice(missingMsg + missing.join('\n'));
+                }
             } else {
                 setStatusMode('progress');
                 engine.startGame({
@@ -93,10 +132,13 @@
                             statusProgress.removeAttribute('max');
                         }
                     },
-                }).then(() => { setStatusMode('hidden'); }, displayFailureNotice);
+                }).then(() => {
+                    setStatusMode('hidden');
+                }, displayFailureNotice);
             }
         };
         window.godotRunStart = run;
     </script>
 </body>
+
 </html>
